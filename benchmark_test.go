@@ -59,7 +59,7 @@ func benchCheckVersion(c, v string, b *testing.B) {
 	constraint, _ := NewConstraint(c)
 
 	for i := 0; i < b.N; i++ {
-		constraint.Check(version)
+		constraint.Check(&version)
 	}
 }
 
@@ -106,7 +106,7 @@ func benchValidateVersion(c, v string, b *testing.B) {
 	constraint, _ := NewConstraint(c)
 
 	for i := 0; i < b.N; i++ {
-		constraint.Validate(version)
+		constraint.Validate(&version)
 	}
 }
 

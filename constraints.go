@@ -11,36 +11,36 @@ import (
 // Constraints is one or more constraint that a semantic version can be
 // checked against.
 type Constraints struct {
-	constraints [][]*constraint
+	constraints [][]constraint
 }
 
 // NewConstraint returns a Constraints instance that a Version instance can
 // be checked against. If there is a parse error it will be returned.
-func NewConstraint(c string) (*Constraints, error) {
+func NewConstraint(c string) (Constraints, error) {
 
 	// Rewrite - ranges into a comparison operation.
 	c = rewriteRange(c)
 
 	ors := strings.Split(c, "||")
-	or := make([][]*constraint, len(ors))
+	or := make([][]constraint, len(ors))
 	for k, v := range ors {
 
 		// TODO: Find a way to validate and fetch all the constraints in a simpler form
 
 		// Validate the segment
 		if !validConstraintRegex.MatchString(v) {
-			return nil, fmt.Errorf("improper constraint: %s", v)
+			return Constraints{}, fmt.Errorf("improper constraint: %s", v)
 		}
 
 		cs := findConstraintRegex.FindAllString(v, -1)
 		if cs == nil {
 			cs = append(cs, v)
 		}
-		result := make([]*constraint, len(cs))
+		result := make([]constraint, len(cs))
 		for i, s := range cs {
 			pc, err := parseConstraint(s)
 			if err != nil {
-				return nil, err
+				return Constraints{}, err
 			}
 
 			result[i] = pc
@@ -48,7 +48,7 @@ func NewConstraint(c string) (*Constraints, error) {
 		or[k] = result
 	}
 
-	o := &Constraints{constraints: or}
+	o := Constraints{constraints: or}
 	return o, nil
 }
 
@@ -88,7 +88,7 @@ func (cs Constraints) Validate(v *Version) (bool, []error) {
 		for _, c := range o {
 			// Before running the check handle the case there the version is
 			// a prerelease and the check is not searching for prereleases.
-			if c.con.pre == "" && v.pre != "" {
+			if c.con.Pre == "" && v.Pre != "" {
 				if !prerelesase {
 					em := fmt.Errorf("%s is a prerelease version and the constraint is only looking for release versions", v)
 					e = append(e, em)
@@ -190,7 +190,7 @@ func init() {
 type constraint struct {
 	// The version used in the constraint check. For example, if a constraint
 	// is '<= 2.0.0' the con a version instance representing 2.0.0.
-	con *Version
+	con Version
 
 	// The original parsed version (e.g., 4.x from != 4.x)
 	orig string
@@ -216,14 +216,14 @@ func (c *constraint) string() string {
 
 type cfunc func(v *Version, c *constraint) (bool, error)
 
-func parseConstraint(c string) (*constraint, error) {
+func parseConstraint(c string) (constraint, error) {
 	if len(c) > 0 {
 		m := constraintRegex.FindStringSubmatch(c)
 		if m == nil {
-			return nil, fmt.Errorf("improper constraint: %s", c)
+			return constraint{}, fmt.Errorf("improper constraint: %s", c)
 		}
 
-		cs := &constraint{
+		cs := constraint{
 			orig:     m[2],
 			origfunc: m[1],
 		}
@@ -250,7 +250,7 @@ func parseConstraint(c string) (*constraint, error) {
 
 			// The constraintRegex should catch any regex parsing errors. So,
 			// we should never get here.
-			return nil, errors.New("constraint Parser Error")
+			return constraint{}, errors.New("constraint Parser Error")
 		}
 
 		cs.con = con
@@ -268,10 +268,10 @@ func parseConstraint(c string) (*constraint, error) {
 
 		// The constraintRegex should catch any regex parsing errors. So,
 		// we should never get here.
-		return nil, errors.New("constraint Parser Error")
+		return constraint{}, errors.New("constraint Parser Error")
 	}
 
-	cs := &constraint{
+	cs := constraint{
 		con:        con,
 		orig:       c,
 		origfunc:   "",
@@ -289,23 +289,23 @@ func constraintNotEqual(v *Version, c *constraint) (bool, error) {
 		// If there is a pre-release on the version but the constraint isn't looking
 		// for them assume that pre-releases are not compatible. See issue 21 for
 		// more details.
-		if v.Prerelease() != "" && c.con.Prerelease() == "" {
+		if v.Pre != "" && c.con.Pre == "" {
 			return false, fmt.Errorf("%s is a prerelease version and the constraint is only looking for release versions", v)
 		}
 
-		if c.con.Major() != v.Major() {
+		if c.con.Major != v.Major {
 			return true, nil
 		}
-		if c.con.Minor() != v.Minor() && !c.minorDirty {
+		if c.con.Minor_fn() != v.Minor_fn() && !c.minorDirty {
 			return true, nil
 		} else if c.minorDirty {
 			return false, fmt.Errorf("%s is equal to %s", v, c.orig)
-		} else if c.con.Patch() != v.Patch() && !c.patchDirty {
+		} else if c.con.Patch != v.Patch && !c.patchDirty {
 			return true, nil
 		} else if c.patchDirty {
 			// Need to handle prereleases if present
-			if v.Prerelease() != "" || c.con.Prerelease() != "" {
-				eq := comparePrerelease(v.Prerelease(), c.con.Prerelease()) != 0
+			if v.Pre != "" || c.con.Pre != "" {
+				eq := comparePrerelease(v.Pre, c.con.Pre) != 0
 				if eq {
 					return true, nil
 				}
@@ -315,7 +315,7 @@ func constraintNotEqual(v *Version, c *constraint) (bool, error) {
 		}
 	}
 
-	eq := v.Equal(c.con)
+	eq := v.Equal(&c.con)
 	if eq {
 		return false, fmt.Errorf("%s is equal to %s", v, c.orig)
 	}
@@ -328,23 +328,23 @@ func constraintGreaterThan(v *Version, c *constraint) (bool, error) {
 	// If there is a pre-release on the version but the constraint isn't looking
 	// for them assume that pre-releases are not compatible. See issue 21 for
 	// more details.
-	if v.Prerelease() != "" && c.con.Prerelease() == "" {
+	if v.Pre != "" && c.con.Pre == "" {
 		return false, fmt.Errorf("%s is a prerelease version and the constraint is only looking for release versions", v)
 	}
 
 	var eq bool
 
 	if !c.dirty {
-		eq = v.Compare(c.con) == 1
+		eq = v.Compare(&c.con) == 1
 		if eq {
 			return true, nil
 		}
 		return false, fmt.Errorf("%s is less than or equal to %s", v, c.orig)
 	}
 
-	if v.Major() > c.con.Major() {
+	if v.Major > c.con.Major {
 		return true, nil
-	} else if v.Major() < c.con.Major() {
+	} else if v.Major < c.con.Major {
 		return false, fmt.Errorf("%s is less than or equal to %s", v, c.orig)
 	} else if c.minorDirty {
 		// This is a range case such as >11. When the version is something like
@@ -353,7 +353,7 @@ func constraintGreaterThan(v *Version, c *constraint) (bool, error) {
 	} else if c.patchDirty {
 		// This is for ranges such as >11.1. A version of 11.1.1 is not greater
 		// which one of 11.2.1 is greater
-		eq = v.Minor() > c.con.Minor()
+		eq = v.Minor_fn() > c.con.Minor_fn()
 		if eq {
 			return true, nil
 		}
@@ -362,7 +362,7 @@ func constraintGreaterThan(v *Version, c *constraint) (bool, error) {
 
 	// If we have gotten here we are not comparing pre-preleases and can use the
 	// Compare function to accomplish that.
-	eq = v.Compare(c.con) == 1
+	eq = v.Compare(&c.con) == 1
 	if eq {
 		return true, nil
 	}
@@ -373,11 +373,11 @@ func constraintLessThan(v *Version, c *constraint) (bool, error) {
 	// If there is a pre-release on the version but the constraint isn't looking
 	// for them assume that pre-releases are not compatible. See issue 21 for
 	// more details.
-	if v.Prerelease() != "" && c.con.Prerelease() == "" {
+	if v.Pre != "" && c.con.Pre == "" {
 		return false, fmt.Errorf("%s is a prerelease version and the constraint is only looking for release versions", v)
 	}
 
-	eq := v.Compare(c.con) < 0
+	eq := v.Compare(&c.con) < 0
 	if eq {
 		return true, nil
 	}
@@ -389,11 +389,11 @@ func constraintGreaterThanEqual(v *Version, c *constraint) (bool, error) {
 	// If there is a pre-release on the version but the constraint isn't looking
 	// for them assume that pre-releases are not compatible. See issue 21 for
 	// more details.
-	if v.Prerelease() != "" && c.con.Prerelease() == "" {
+	if v.Pre != "" && c.con.Pre == "" {
 		return false, fmt.Errorf("%s is a prerelease version and the constraint is only looking for release versions", v)
 	}
 
-	eq := v.Compare(c.con) >= 0
+	eq := v.Compare(&c.con) >= 0
 	if eq {
 		return true, nil
 	}
@@ -404,23 +404,23 @@ func constraintLessThanEqual(v *Version, c *constraint) (bool, error) {
 	// If there is a pre-release on the version but the constraint isn't looking
 	// for them assume that pre-releases are not compatible. See issue 21 for
 	// more details.
-	if v.Prerelease() != "" && c.con.Prerelease() == "" {
+	if v.Pre != "" && c.con.Pre == "" {
 		return false, fmt.Errorf("%s is a prerelease version and the constraint is only looking for release versions", v)
 	}
 
 	var eq bool
 
 	if !c.dirty {
-		eq = v.Compare(c.con) <= 0
+		eq = v.Compare(&c.con) <= 0
 		if eq {
 			return true, nil
 		}
 		return false, fmt.Errorf("%s is greater than %s", v, c.orig)
 	}
 
-	if v.Major() > c.con.Major() {
+	if v.Major > c.con.Major {
 		return false, fmt.Errorf("%s is greater than %s", v, c.orig)
-	} else if v.Major() == c.con.Major() && v.Minor() > c.con.Minor() && !c.minorDirty {
+	} else if v.Major == c.con.Major && v.Minor_fn() > c.con.Minor_fn() && !c.minorDirty {
 		return false, fmt.Errorf("%s is greater than %s", v, c.orig)
 	}
 
@@ -437,26 +437,26 @@ func constraintTilde(v *Version, c *constraint) (bool, error) {
 	// If there is a pre-release on the version but the constraint isn't looking
 	// for them assume that pre-releases are not compatible. See issue 21 for
 	// more details.
-	if v.Prerelease() != "" && c.con.Prerelease() == "" {
+	if v.Pre != "" && c.con.Pre == "" {
 		return false, fmt.Errorf("%s is a prerelease version and the constraint is only looking for release versions", v)
 	}
 
-	if v.LessThan(c.con) {
+	if v.LessThan(&c.con) {
 		return false, fmt.Errorf("%s is less than %s", v, c.orig)
 	}
 
 	// ~0.0.0 is a special case where all constraints are accepted. It's
 	// equivalent to >= 0.0.0.
-	if c.con.Major() == 0 && c.con.Minor() == 0 && c.con.Patch() == 0 &&
+	if c.con.Major == 0 && c.con.Minor_fn() == 0 && c.con.Patch == 0 &&
 		!c.minorDirty && !c.patchDirty {
 		return true, nil
 	}
 
-	if v.Major() != c.con.Major() {
+	if v.Major != c.con.Major {
 		return false, fmt.Errorf("%s does not have same major version as %s", v, c.orig)
 	}
 
-	if v.Minor() != c.con.Minor() && !c.minorDirty {
+	if v.Minor_fn() != c.con.Minor_fn() && !c.minorDirty {
 		return false, fmt.Errorf("%s does not have same major and minor version as %s", v, c.orig)
 	}
 
@@ -469,7 +469,7 @@ func constraintTildeOrEqual(v *Version, c *constraint) (bool, error) {
 	// If there is a pre-release on the version but the constraint isn't looking
 	// for them assume that pre-releases are not compatible. See issue 21 for
 	// more details.
-	if v.Prerelease() != "" && c.con.Prerelease() == "" {
+	if v.Pre != "" && c.con.Pre == "" {
 		return false, fmt.Errorf("%s is a prerelease version and the constraint is only looking for release versions", v)
 	}
 
@@ -477,7 +477,7 @@ func constraintTildeOrEqual(v *Version, c *constraint) (bool, error) {
 		return constraintTilde(v, c)
 	}
 
-	eq := v.Equal(c.con)
+	eq := v.Equal(&c.con)
 	if eq {
 		return true, nil
 	}
@@ -498,24 +498,24 @@ func constraintCaret(v *Version, c *constraint) (bool, error) {
 	// If there is a pre-release on the version but the constraint isn't looking
 	// for them assume that pre-releases are not compatible. See issue 21 for
 	// more details.
-	if v.Prerelease() != "" && c.con.Prerelease() == "" {
+	if v.Pre != "" && c.con.Pre == "" {
 		return false, fmt.Errorf("%s is a prerelease version and the constraint is only looking for release versions", v)
 	}
 
 	// This less than handles prereleases
-	if v.LessThan(c.con) {
+	if v.LessThan(&c.con) {
 		return false, fmt.Errorf("%s is less than %s", v, c.orig)
 	}
 
 	var eq bool
 
 	// ^ when the major > 0 is >=x.y.z < x+1
-	if c.con.Major() > 0 || c.minorDirty {
+	if c.con.Major > 0 || c.minorDirty {
 
 		// ^ has to be within a major range for > 0. Everything less than was
 		// filtered out with the LessThan call above. This filters out those
 		// that greater but not within the same major range.
-		eq = v.Major() == c.con.Major()
+		eq = v.Major == c.con.Major
 		if eq {
 			return true, nil
 		}
@@ -523,12 +523,12 @@ func constraintCaret(v *Version, c *constraint) (bool, error) {
 	}
 
 	// ^ when the major is 0 and minor > 0 is >=0.y.z < 0.y+1
-	if c.con.Major() == 0 && v.Major() > 0 {
+	if c.con.Major == 0 && v.Major > 0 {
 		return false, fmt.Errorf("%s does not have same major version as %s", v, c.orig)
 	}
 	// If the con Minor is > 0 it is not dirty
-	if c.con.Minor() > 0 || c.patchDirty {
-		eq = v.Minor() == c.con.Minor()
+	if c.con.Minor_fn() > 0 || c.patchDirty {
+		eq = v.Minor_fn() == c.con.Minor_fn()
 		if eq {
 			return true, nil
 		}
@@ -537,7 +537,7 @@ func constraintCaret(v *Version, c *constraint) (bool, error) {
 
 	// At this point the major is 0 and the minor is 0 and not dirty. The patch
 	// is not dirty so we need to check if they are equal. If they are not equal
-	eq = c.con.Patch() == v.Patch()
+	eq = c.con.Patch == v.Patch
 	if eq {
 		return true, nil
 	}

@@ -90,9 +90,9 @@ func TestNewVersion(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		_, err := NewVersion(tc.version)
+		v, err := NewVersion(tc.version)
 		if tc.err && err == nil {
-			t.Fatalf("expected error for version: %s", tc.version)
+			t.Fatalf("expected error for version: %s and received %v", tc.version, v)
 		} else if !tc.err && err != nil {
 			t.Fatalf("error for version %s: %s", tc.version, err)
 		}
@@ -125,7 +125,7 @@ func TestOriginal(t *testing.T) {
 			t.Errorf("Error parsing version %s", tc)
 		}
 
-		o := v.Original()
+		o := v.Original_fn()
 		if o != tc {
 			t.Errorf("Error retrieving original. Expected '%s' but got '%v'", tc, v)
 		}
@@ -138,19 +138,19 @@ func TestParts(t *testing.T) {
 		t.Error("Error parsing version 1.2.3-beta.1+build.123")
 	}
 
-	if v.Major() != 1 {
+	if v.Major != 1 {
 		t.Error("Major() returning wrong value")
 	}
-	if v.Minor() != 2 {
+	if v.Minor_fn() != 2 {
 		t.Error("Minor() returning wrong value")
 	}
-	if v.Patch() != 3 {
+	if v.Patch != 3 {
 		t.Error("Patch() returning wrong value")
 	}
-	if v.Prerelease() != "beta.1" {
+	if v.Pre != "beta.1" {
 		t.Error("Prerelease() returning wrong value")
 	}
-	if v.Metadata() != "build.123" {
+	if v.Metadata_fn() != "build.123" {
 		t.Error("Metadata() returning wrong value")
 	}
 }
@@ -229,7 +229,7 @@ func TestCompare(t *testing.T) {
 			t.Errorf("Error parsing version: %s", err)
 		}
 
-		a := v1.Compare(v2)
+		a := v1.Compare(&v2)
 		e := tc.expected
 		if a != e {
 			t.Errorf(
@@ -262,7 +262,7 @@ func TestLessThan(t *testing.T) {
 			t.Errorf("Error parsing version: %s", err)
 		}
 
-		a := v1.LessThan(v2)
+		a := v1.LessThan(&v2)
 		e := tc.expected
 		if a != e {
 			t.Errorf(
@@ -300,7 +300,7 @@ func TestGreaterThan(t *testing.T) {
 			t.Errorf("Error parsing version: %s", err)
 		}
 
-		a := v1.GreaterThan(v2)
+		a := v1.GreaterThan(&v2)
 		e := tc.expected
 		if a != e {
 			t.Errorf(
@@ -334,7 +334,7 @@ func TestEqual(t *testing.T) {
 			t.Errorf("Error parsing version: %s", err)
 		}
 
-		a := v1.Equal(v2)
+		a := v1.Equal(&v2)
 		e := tc.expected
 		if a != e {
 			t.Errorf(
@@ -391,7 +391,7 @@ func TestInc(t *testing.T) {
 			)
 		}
 
-		a = v2.Original()
+		a = v2.Original_fn()
 		e = tc.expectedOriginal
 		if a != e {
 			t.Errorf(
@@ -427,7 +427,7 @@ func TestSetPrerelease(t *testing.T) {
 			t.Errorf("Expected to get err=%s, but got err=%s", tc.expectedErr, err)
 		}
 
-		a := v2.Prerelease()
+		a := v2.Pre
 		e := tc.expectedPrerelease
 		if a != e {
 			t.Errorf("Expected prerelease value=%q, but got %q", e, a)
@@ -439,7 +439,7 @@ func TestSetPrerelease(t *testing.T) {
 			t.Errorf("Expected version string=%q, but got %q", e, a)
 		}
 
-		a = v2.Original()
+		a = v2.Original
 		e = tc.expectedOriginal
 		if a != e {
 			t.Errorf("Expected version original=%q, but got %q", e, a)
@@ -472,7 +472,7 @@ func TestSetMetadata(t *testing.T) {
 			t.Errorf("Expected to get err=%s, but got err=%s", tc.expectedErr, err)
 		}
 
-		a := v2.Metadata()
+		a := v2.Metadata_fn()
 		e := tc.expectedMetadata
 		if a != e {
 			t.Errorf("Expected metadata value=%q, but got %q", e, a)
@@ -484,7 +484,7 @@ func TestSetMetadata(t *testing.T) {
 			t.Errorf("Expected version string=%q, but got %q", e, a)
 		}
 
-		a = v2.Original()
+		a = v2.Original_fn()
 		e = tc.expectedOriginal
 		if a != e {
 			t.Errorf("Expected version original=%q, but got %q", e, a)
@@ -530,8 +530,8 @@ func TestJsonMarshal(t *testing.T) {
 
 func TestJsonUnmarshal(t *testing.T) {
 	sVer := "1.1.1"
-	ver := &Version{}
-	err := json.Unmarshal([]byte(fmt.Sprintf("%q", sVer)), ver)
+	ver, _ := NewVersion(sVer)
+	err := json.Unmarshal([]byte(fmt.Sprintf("%q", sVer)), &ver)
 	if err != nil {
 		t.Errorf("Error unmarshaling version: %s", err)
 	}
@@ -548,7 +548,7 @@ func TestSQLScanner(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error creating version: %s", err)
 	}
-	var s sql.Scanner = x
+	var s sql.Scanner = &x
 	var out *Version
 	var ok bool
 	if out, ok = s.(*Version); !ok {

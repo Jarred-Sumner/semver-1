@@ -198,7 +198,7 @@ func TestConstraintCheck(t *testing.T) {
 			continue
 		}
 
-		a, _ := c.check(v)
+		a, _ := c.check(&v)
 		if a != tc.check {
 			t.Errorf("Constraint %q failing with %q", tc.constraint, tc.version)
 		}
@@ -394,7 +394,7 @@ func TestConstraintsCheck(t *testing.T) {
 			continue
 		}
 
-		a := c.Check(v)
+		a := c.Check(&v)
 		if a != tc.check {
 			t.Errorf("Constraint '%s' failing with '%s'", tc.constraint, tc.version)
 		}
@@ -532,7 +532,7 @@ func TestConstraintsValidate(t *testing.T) {
 			continue
 		}
 
-		a, msgs := c.Validate(v)
+		a, msgs := c.Validate(&v)
 		if a != tc.check {
 			t.Errorf("Constraint '%s' failing with '%s'", tc.constraint, tc.version)
 		} else if !a && len(msgs) == 0 {
@@ -556,7 +556,7 @@ func TestConstraintsValidate(t *testing.T) {
 		t.Errorf("err: %s", err)
 	}
 
-	_, msgs := c.Validate(v)
+	_, msgs := c.Validate(&v)
 	if len(msgs) != 2 {
 		t.Error("Invalid number of validations found")
 	}
@@ -623,7 +623,7 @@ func TestConstraintsValidate(t *testing.T) {
 			continue
 		}
 
-		_, msgs := c.Validate(v)
+		_, msgs := c.Validate(&v)
 		if len(msgs) == 0 {
 			t.Errorf("Did not get error message on constraint %q", tc.constraint)
 		} else {
