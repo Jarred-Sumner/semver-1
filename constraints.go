@@ -296,7 +296,7 @@ func constraintNotEqual(v *Version, c *constraint) (bool, error) {
 		if c.con.Major != v.Major {
 			return true, nil
 		}
-		if c.con.Minor_fn() != v.Minor_fn() && !c.minorDirty {
+		if c.con.Minor != v.Minor && !c.minorDirty {
 			return true, nil
 		} else if c.minorDirty {
 			return false, fmt.Errorf("%s is equal to %s", v, c.orig)
@@ -353,7 +353,7 @@ func constraintGreaterThan(v *Version, c *constraint) (bool, error) {
 	} else if c.patchDirty {
 		// This is for ranges such as >11.1. A version of 11.1.1 is not greater
 		// which one of 11.2.1 is greater
-		eq = v.Minor_fn() > c.con.Minor_fn()
+		eq = v.Minor > c.con.Minor
 		if eq {
 			return true, nil
 		}
@@ -420,7 +420,7 @@ func constraintLessThanEqual(v *Version, c *constraint) (bool, error) {
 
 	if v.Major > c.con.Major {
 		return false, fmt.Errorf("%s is greater than %s", v, c.orig)
-	} else if v.Major == c.con.Major && v.Minor_fn() > c.con.Minor_fn() && !c.minorDirty {
+	} else if v.Major == c.con.Major && v.Minor > c.con.Minor && !c.minorDirty {
 		return false, fmt.Errorf("%s is greater than %s", v, c.orig)
 	}
 
@@ -447,7 +447,7 @@ func constraintTilde(v *Version, c *constraint) (bool, error) {
 
 	// ~0.0.0 is a special case where all constraints are accepted. It's
 	// equivalent to >= 0.0.0.
-	if c.con.Major == 0 && c.con.Minor_fn() == 0 && c.con.Patch == 0 &&
+	if c.con.Major == 0 && c.con.Minor == 0 && c.con.Patch == 0 &&
 		!c.minorDirty && !c.patchDirty {
 		return true, nil
 	}
@@ -456,7 +456,7 @@ func constraintTilde(v *Version, c *constraint) (bool, error) {
 		return false, fmt.Errorf("%s does not have same major version as %s", v, c.orig)
 	}
 
-	if v.Minor_fn() != c.con.Minor_fn() && !c.minorDirty {
+	if v.Minor != c.con.Minor && !c.minorDirty {
 		return false, fmt.Errorf("%s does not have same major and minor version as %s", v, c.orig)
 	}
 
@@ -527,8 +527,8 @@ func constraintCaret(v *Version, c *constraint) (bool, error) {
 		return false, fmt.Errorf("%s does not have same major version as %s", v, c.orig)
 	}
 	// If the con Minor is > 0 it is not dirty
-	if c.con.Minor_fn() > 0 || c.patchDirty {
-		eq = v.Minor_fn() == c.con.Minor_fn()
+	if c.con.Minor > 0 || c.patchDirty {
+		eq = v.Minor == c.con.Minor
 		if eq {
 			return true, nil
 		}
